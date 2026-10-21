@@ -33,7 +33,7 @@ export function MetricsPanel({
         <h2 className="text-sm font-semibold">Session metrics</h2>
         <Button size="sm" variant="ghost" onClick={onReset} disabled={historyLength === 0}>
           <RotateCcw data-icon="inline-start" />
-          Reset
+          Borrar conversación
         </Button>
       </div>
 

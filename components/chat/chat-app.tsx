@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   DEFAULT_MODEL,
   GroqError,
@@ -16,6 +16,7 @@ import { SettingsBar } from './settings-bar'
 
 const SYSTEM_PROMPT =
   'You are a helpful, friendly assistant. Reply conversationally in plain natural language.'
+const SESSION_STORAGE_KEY = 'groq-chat-session-v1'
 
 const initialMetrics: Metrics = {
   promptTokensTotal: 0,
@@ -37,7 +38,41 @@ export function ChatApp() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sessionLoaded, setSessionLoaded] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const isClearingRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(SESSION_STORAGE_KEY)
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved)
+        if (Array.isArray(parsed)) {
+          const restored = parsed.filter(isDisplayMessage)
+          setMessages(restored)
+          setMetrics(metricsFromMessages(restored))
+        }
+      }
+    } catch {
+      setError('Could not restore the saved conversation from this browser.')
+    } finally {
+      setSessionLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!sessionLoaded) return
+
+    try {
+      if (messages.length === 0) {
+        window.localStorage.removeItem(SESSION_STORAGE_KEY)
+      } else {
+        window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(messages))
+      }
+    } catch {
+      setError('Could not save the conversation in this browser.')
+    }
+  }, [messages, sessionLoaded])
 
   async function handleSend() {
     const text = input.trim()
@@ -51,6 +86,7 @@ export function ChatApp() {
       setError('Choose a model before sending a message.')
       return
     }
+    isClearingRef.current = false
 
     const userMessage: DisplayMessage = { role: 'user', content: text }
     const history = [...messages, userMessage]
@@ -87,9 +123,15 @@ export function ChatApp() {
       ])
       setMetrics((prev) => accumulate(prev, result.usage, result))
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        if (!isClearingRef.current) {
+          setMessages(messages)
+          setInput(text)
+        }
+        return
+      }
       setMessages(messages)
       setInput(text)
-      if (err instanceof DOMException && err.name === 'AbortError') return
       setError(
         err instanceof GroqError
           ? err.message
@@ -97,6 +139,7 @@ export function ChatApp() {
       )
     } finally {
       abortRef.current = null
+      isClearingRef.current = false
       setIsLoading(false)
     }
   }
@@ -106,6 +149,7 @@ export function ChatApp() {
   }
 
   function handleReset() {
+    isClearingRef.current = abortRef.current !== null
     abortRef.current?.abort()
     setMessages([])
     setMetrics(initialMetrics)
@@ -174,4 +218,51 @@ function accumulate(
     modelName: result.model,
     turns: prev.turns + 1,
   }
+}
+
+function isDisplayMessage(value: unknown): value is DisplayMessage {
+  if (typeof value !== 'object' || value === null) return false
+  const message = value as Record<string, unknown>
+  return (
+    (message.role === 'user' || message.role === 'assistant') &&
+    typeof message.content === 'string' &&
+    (message.usage === undefined || isUsage(message.usage)) &&
+    (message.elapsedMs === undefined ||
+      (typeof message.elapsedMs === 'number' && Number.isFinite(message.elapsedMs))) &&
+    (message.model === undefined || typeof message.model === 'string')
+  )
+}
+
+function isUsage(value: unknown): value is Usage {
+  if (typeof value !== 'object' || value === null) return false
+  const usage = value as Record<string, unknown>
+  return (
+    typeof usage.prompt_tokens === 'number' &&
+    Number.isFinite(usage.prompt_tokens) &&
+    typeof usage.completion_tokens === 'number' &&
+    Number.isFinite(usage.completion_tokens) &&
+    typeof usage.total_tokens === 'number' &&
+    Number.isFinite(usage.total_tokens)
+  )
+}
+
+function metricsFromMessages(messages: DisplayMessage[]): Metrics {
+  return messages.reduce((metrics, message) => {
+    if (message.role !== 'assistant' || !message.usage) return metrics
+
+    const seconds = (message.elapsedMs ?? 0) / 1000
+    return {
+      promptTokensTotal: metrics.promptTokensTotal + message.usage.prompt_tokens,
+      completionTokensTotal:
+        metrics.completionTokensTotal + message.usage.completion_tokens,
+      tokensTotal: metrics.tokensTotal + message.usage.total_tokens,
+      lastResponseMs: message.elapsedMs ?? metrics.lastResponseMs,
+      tokensPerSecond:
+        seconds > 0
+          ? message.usage.completion_tokens / seconds
+          : metrics.tokensPerSecond,
+      modelName: message.model ?? metrics.modelName,
+      turns: metrics.turns + 1,
+    }
+  }, initialMetrics)
 }
