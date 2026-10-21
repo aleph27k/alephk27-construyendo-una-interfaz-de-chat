@@ -4,8 +4,9 @@ export const DEFAULT_MODEL = 'llama-3.1-8b-instant'
 
 export const SUGGESTED_MODELS = [
   'llama-3.1-8b-instant',
-  'llama3-8b-8192',
-  'qwen/qwen3-32b',
+  'qwen/qwen3.8-27b',
+  'openai/gpt-oss-20b',
+  'openai/gpt-oss-120b',
   'llama-3.3-70b-versatile',
 ]
 
