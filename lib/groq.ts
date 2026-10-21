@@ -9,6 +9,12 @@ export const SUGGESTED_MODELS = [
   'llama-3.3-70b-versatile',
 ]
 
+// Guard models (e.g. llama-prompt-guard, llama-guard) are text classifiers:
+// Groq rejects any payload that isn't exactly one user message.
+export function isClassificationModel(model: string) {
+  return /guard/i.test(model)
+}
+
 export type ChatRole = 'system' | 'user' | 'assistant'
 
 export type ChatMessage = {
@@ -95,8 +101,6 @@ export async function sendChat({
       response.status,
     )
   }
-
-  console.log('[v0] Groq raw response:', response.status, data)
 
   if (!response.ok) {
     const apiMessage =

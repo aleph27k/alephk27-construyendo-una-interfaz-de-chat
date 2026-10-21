@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import {
   DEFAULT_MODEL,
   GroqError,
+  isClassificationModel,
   sendChat,
   type ChatMessage,
   type Usage,
@@ -54,10 +55,12 @@ export function ChatApp() {
 
     const userMessage: DisplayMessage = { role: 'user', content: text }
     const history = [...messages, userMessage]
-    const payload: ChatMessage[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...history.map(({ role, content }) => ({ role, content })),
-    ]
+    const payload: ChatMessage[] = isClassificationModel(model.trim())
+      ? [{ role: 'user', content: text }]
+      : [
+          { role: 'system', content: SYSTEM_PROMPT },
+          ...history.map(({ role, content }) => ({ role, content })),
+        ]
 
     setMessages(history)
     setInput('')
