@@ -14,6 +14,9 @@ import { MessageList, type DisplayMessage } from './message-list'
 import { MetricsPanel, type Metrics } from './metrics-panel'
 import { SettingsBar } from './settings-bar'
 
+const SYSTEM_PROMPT =
+  'You are a helpful, friendly assistant. Reply conversationally in plain natural language.'
+
 const initialMetrics: Metrics = {
   promptTokensTotal: 0,
   completionTokensTotal: 0,
@@ -51,10 +54,10 @@ export function ChatApp() {
 
     const userMessage: DisplayMessage = { role: 'user', content: text }
     const history = [...messages, userMessage]
-    const payload: ChatMessage[] = history.map(({ role, content }) => ({
-      role,
-      content,
-    }))
+    const payload: ChatMessage[] = [
+      { role: 'system', content: SYSTEM_PROMPT },
+      ...history.map(({ role, content }) => ({ role, content })),
+    ]
 
     setMessages(history)
     setInput('')
@@ -79,6 +82,7 @@ export function ChatApp() {
           content: result.content,
           usage: result.usage,
           elapsedMs: result.elapsedMs,
+          model: result.model,
         },
       ])
       setMetrics((prev) => accumulate(prev, result.usage, result))

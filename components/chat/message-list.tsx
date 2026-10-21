@@ -10,6 +10,7 @@ export type DisplayMessage = {
   content: string
   usage?: Usage
   elapsedMs?: number
+  model?: string
 }
 
 export function MessageList({
@@ -79,6 +80,7 @@ function MessageItem({ message }: { message: DisplayMessage }) {
         </div>
         {message.usage && (
           <p className="font-mono text-[11px] text-muted-foreground">
+            {message.model && `${message.model} · `}
             {message.usage.prompt_tokens} in · {message.usage.completion_tokens} out ·{' '}
             {message.usage.total_tokens} total
             {message.elapsedMs !== undefined && ` · ${Math.round(message.elapsedMs)} ms`}

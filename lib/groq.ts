@@ -96,6 +96,8 @@ export async function sendChat({
     )
   }
 
+  console.log('[v0] Groq raw response:', response.status, data)
+
   if (!response.ok) {
     const apiMessage =
       (data as { error?: { message?: unknown } })?.error?.message
